@@ -7,14 +7,24 @@ pub use state::*;
 pub mod instructions;
 pub use instructions::*;
 
-declare_id!("GnSc9kr2VfWzvck2cZSZSuQzSBfWgNXrKJBb96KH5bQe");
+declare_id!("5VgFt7VaM9eMchXbhLmepFvgwVBniab4PUYBskcYesML");
 
 #[program]
 pub mod fungstake {
     use super::*;
 
-    pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
-        initialize::initialize(ctx)
+    pub fn initialize(
+        ctx: Context<Initialize>,
+        bonding_curve_unbonding_period: u32,
+        max_unbonding_period: u32,
+        soft_cap: u64,
+    ) -> Result<()> {
+        initialize::initialize(
+            ctx,
+            bonding_curve_unbonding_period,
+            max_unbonding_period,
+            soft_cap,
+        )
     }
 
     pub fn stake(ctx: Context<Stake>, amount: u64) -> Result<()> {

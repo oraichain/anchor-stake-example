@@ -5,7 +5,7 @@ resolution = true
 skip-lint = false
 
 [programs.devnet]
-fungstake = "GnSc9kr2VfWzvck2cZSZSuQzSBfWgNXrKJBb96KH5bQe"
+fungstake = "5VgFt7VaM9eMchXbhLmepFvgwVBniab4PUYBskcYesML"
 
 [registry]
 url = "https://api.apr.dev"
@@ -15,4 +15,5 @@ cluster = "Devnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
+build-with-so = "mkdir -p $PWD/target/deploy && anchor build && ln -s $HOME/.cargo/target/sbf-solana-solana/release/fungstake.so $PWD/target/deploy/fungstake.so"
 test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"

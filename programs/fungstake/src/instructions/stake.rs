@@ -1,18 +1,63 @@
+use crate::{
+    constant::constants::{STAKE_CONFIG_SEED, VAULT_SEED},
+    state::StakeInfo,
+    StakeConfig, STAKE_CONFIG_SIZE, STAKE_INFO_SIZE,
+};
 use anchor_lang::prelude::*;
 use anchor_spl::{
     associated_token::AssociatedToken,
-    token::{transfer, Mint, TokenAccount, Token, Transfer},
+    token::{transfer, Mint, Token, TokenAccount, Transfer},
 };
 use solana_program::clock::Clock;
-use crate::state::StakeInfo;
 
+use crate::constant::constants::{STAKE_INFO_SEED, TOKEN_SEED};
 use crate::error::ErrorCode;
-use crate::constant::constants::{STAKE_INFO_SEED,TOKEN_SEED};
 
+#[derive(Accounts)]
+pub struct Stake<'info> {
+    #[account(mut)]
+    pub signer: Signer<'info>,
 
+    #[account(
+        seeds = [STAKE_CONFIG_SEED],
+        bump,
+    )]
+    pub stake_config: Box<Account<'info, StakeConfig>>,
+
+    #[account(
+        init_if_needed,
+        seeds = [VAULT_SEED, stake_config.key().as_ref(), mint.key().as_ref()],
+        bump,
+        payer = signer,
+        token::mint = mint,
+        token::authority = token_vault_account,
+    )]
+    pub token_vault_account: Account<'info, TokenAccount>,
+
+    #[account(
+        init_if_needed,
+        seeds = [STAKE_INFO_SEED, stake_config.key().as_ref(), mint.key().as_ref(), signer.key.as_ref()],
+        bump,
+        payer = signer,
+        space = STAKE_INFO_SIZE
+    )]
+    pub user_stake_info_pda: Account<'info, StakeInfo>,
+
+    #[account(
+        mut,
+        associated_token::mint = mint,
+        associated_token::authority = signer,
+    )]
+    pub user_token_account: Account<'info, TokenAccount>,
+
+    pub mint: Account<'info, Mint>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
+    pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
+}
 
 pub fn stake(ctx: Context<Stake>, amount: u64) -> Result<()> {
-    let stake_info = &mut ctx.accounts.stake_info_account;
+    let stake_info = &mut ctx.accounts.user_stake_pda;
 
     if stake_info.is_staked {
         return Err(ErrorCode::IsStaked.into());
@@ -31,7 +76,7 @@ pub fn stake(ctx: Context<Stake>, amount: u64) -> Result<()> {
 
     let transfer_accounts = Transfer {
         from: ctx.accounts.user_token_account.to_account_info(),
-        to: ctx.accounts.stake_account.to_account_info(),
+        to: ctx.accounts.user_stake_ata.to_account_info(),
         authority: ctx.accounts.signer.to_account_info(),
     };
 
@@ -43,47 +88,4 @@ pub fn stake(ctx: Context<Stake>, amount: u64) -> Result<()> {
     transfer(cpi_ctx, stake_amount)?;
 
     Ok(())
-}
-
-
-
-
-
-
-
-#[derive(Accounts)]
-pub struct Stake<'info> {
-    #[account(mut)]
-    pub signer: Signer<'info>,
-
-    #[account(
-        init_if_needed,
-        seeds = [STAKE_INFO_SEED, signer.key.as_ref()],
-        bump,
-        payer = signer,
-        space = 8 + std::mem::size_of::<StakeInfo>()
-    )]
-    pub stake_info_account: Account<'info, StakeInfo>,
-
-    #[account(
-        init_if_needed,
-        seeds = [TOKEN_SEED, signer.key.as_ref()],
-        bump,
-        payer = signer,
-        token::mint = mint,
-        token::authority = stake_account,
-    )]
-    pub stake_account: Account<'info, TokenAccount>,
-
-    #[account(
-        mut,
-        associated_token::mint = mint,
-        associated_token::authority = signer,
-    )]
-    pub user_token_account: Account<'info, TokenAccount>,
-
-    pub mint: Account<'info, Mint>,
-    pub associated_token_program: Program<'info, AssociatedToken>,
-    pub token_program: Program<'info, Token>,
-    pub system_program: Program<'info, System>,
 }
