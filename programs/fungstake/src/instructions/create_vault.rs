@@ -1,7 +1,7 @@
 use anchor_lang::{prelude::*, system_program};
 use anchor_spl::{
-    associated_token,
-    token::{self, Mint, TokenAccount},
+    associated_token::AssociatedToken,
+    token::{Mint, Token, TokenAccount},
 };
 
 use crate::{
@@ -35,24 +35,22 @@ pub struct CreateVault<'info> {
     )]
     pub vault: Box<Account<'info, Vault>>,
 
-    /// CHECK: created in instruction
     #[account(
-        mut,
-        seeds = [
-            vault.key().as_ref(),
-            token::spl_token::ID.as_ref(),
-            currency_mint.key().as_ref(),
-        ],
-        bump,
-        seeds::program = associated_token::ID
+        init_if_needed,
+        payer = signer,
+        associated_token::mint = currency_mint,
+        associated_token::authority = vault
     )]
-    vault_token_account: UncheckedAccount<'info>,
+    vault_token_account: Box<Account<'info, TokenAccount>>,
 
     #[account(address = system_program::ID)]
     pub system_program: Program<'info, System>,
 
     #[account(address = Rent::id())]
     pub rent: Sysvar<'info, Rent>,
+
+    token_program: Program<'info, Token>,
+    associated_token_program: Program<'info, AssociatedToken>,
 }
 
 impl<'info> CreateVault<'info> {
