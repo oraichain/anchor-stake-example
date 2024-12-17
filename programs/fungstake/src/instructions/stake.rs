@@ -1,12 +1,12 @@
 use crate::{
     constant::constants::{STAKE_CONFIG_SEED, VAULT_SEED},
     state::StakeInfo,
-    StakeConfig, STAKE_CONFIG_SIZE, STAKE_INFO_SIZE,
+    StakeConfig, Vault, STAKE_CONFIG_SIZE, STAKE_INFO_SIZE,
 };
 use anchor_lang::prelude::*;
 use anchor_spl::{
-    associated_token::AssociatedToken,
-    token::{transfer, Mint, Token, TokenAccount, Transfer},
+    associated_token::{self, AssociatedToken},
+    token::{self, transfer, Mint, Token, TokenAccount, Transfer},
 };
 use solana_program::clock::Clock;
 
@@ -25,18 +25,29 @@ pub struct Stake<'info> {
     pub stake_config: Box<Account<'info, StakeConfig>>,
 
     #[account(
-        init_if_needed,
-        seeds = [VAULT_SEED, stake_config.key().as_ref(), mint.key().as_ref()],
+        seeds = [
+            VAULT_SEED,
+            currency_mint.key().as_ref()
+        ],
         bump,
-        payer = signer,
-        token::mint = mint,
-        token::authority = token_vault_account,
+    )]
+    pub vault: Box<Account<'info, Vault>>,
+
+    #[account(
+        mut,
+        seeds = [
+            vault.key().as_ref(),
+            token::spl_token::ID.as_ref(),
+            currency_mint.key().as_ref(),
+        ],
+        bump,
+        seeds::program = associated_token::ID
     )]
     pub token_vault_account: Account<'info, TokenAccount>,
 
     #[account(
         init_if_needed,
-        seeds = [STAKE_INFO_SEED, stake_config.key().as_ref(), mint.key().as_ref(), signer.key.as_ref()],
+        seeds = [STAKE_INFO_SEED, vault.key().as_ref(), currency_mint.key().as_ref(), signer.key.as_ref()],
         bump,
         payer = signer,
         space = STAKE_INFO_SIZE
@@ -45,12 +56,13 @@ pub struct Stake<'info> {
 
     #[account(
         mut,
-        associated_token::mint = mint,
+        associated_token::mint = currency_mint,
         associated_token::authority = signer,
     )]
     pub user_token_account: Account<'info, TokenAccount>,
 
-    pub mint: Account<'info, Mint>,
+    pub currency_mint: Account<'info, Mint>,
+
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
