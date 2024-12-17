@@ -86,6 +86,7 @@ pub fn stake(ctx: Context<Stake>, amount: u64) -> Result<()> {
     // check reach soft cap
     if vault.total_staked >= stake_config.soft_cap {
         vault.end_time = current_timestamp + stake_config.lock_extend_time as i64;
+        vault.reach_soft_cap = true;
     }
 
     // transfer(cpi_ctx, stake_amount)?;

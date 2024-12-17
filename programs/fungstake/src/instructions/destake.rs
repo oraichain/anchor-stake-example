@@ -6,7 +6,7 @@ use anchor_spl::{
 };
 use solana_program::clock::Clock;
 
-use crate::constant::constants::{STAKE_INFO_SEED, TOKEN_SEED, VAULT_SEED};
+use crate::constant::constants::{STAKE_INFO_SEED, VAULT_SEED};
 use crate::error::ErrorCode;
 
 pub fn destake(ctx: Context<DeStake>) -> Result<()> {
@@ -24,7 +24,11 @@ pub fn destake(ctx: Context<DeStake>) -> Result<()> {
     }
 
     let stake_amount = stake_info.stake_amount;
-    vault.total_staked -= stake_amount;
+    stake_info.stake_amount = 0;
+    // after locked time, we will not decrease totalStaked
+    if vault.end_time > 0 && current_timestamp > vault.end_time {
+        vault.total_staked -= stake_amount;
+    }
 
     let current_mint_key = current_mint.key();
     let vault_signer_seeds: &[&[&[u8]]] =
