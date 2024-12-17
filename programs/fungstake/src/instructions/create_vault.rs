@@ -16,18 +16,23 @@ pub struct CreateVault<'info> {
     pub signer: Signer<'info>,
 
     #[account(
-        seeds = [STAKE_CONFIG_SEED],
+        seeds = [STAKE_CONFIG_SEED, stake_currency_mint.key().as_ref()],
         bump,
     )]
     pub stake_config: Box<Account<'info, StakeConfig>>,
 
-    pub currency_mint: Account<'info, Mint>,
+    /// CHECK: currency_mint for rewarding, not staking
+    pub reward_currency_mint: Account<'info, Mint>,
+
+    /// CHECK: currency_mint for rewarding, not staking
+    pub stake_currency_mint: Account<'info, Mint>,
 
     #[account(
         init,
         seeds = [
             VAULT_SEED,
-            currency_mint.key().as_ref()
+            stake_config.key().as_ref(),
+            reward_currency_mint.key().as_ref()
         ],
         bump,
         space = VAULT_SIZE,
@@ -38,7 +43,7 @@ pub struct CreateVault<'info> {
     #[account(
         init_if_needed,
         payer = signer,
-        associated_token::mint = currency_mint,
+        associated_token::mint = stake_currency_mint,
         associated_token::authority = vault
     )]
     vault_token_account: Box<Account<'info, TokenAccount>>,
@@ -58,7 +63,7 @@ pub struct CreateVault<'info> {
 impl<'info> CreateVault<'info> {
     pub fn process(&mut self) -> Result<()> {
         let vault = &mut self.vault;
-        vault.currency_mint = self.currency_mint.key();
+        vault.reward_currency_mint = self.reward_currency_mint.key();
         vault.total_staked = 0;
         vault.end_time = 0;
 

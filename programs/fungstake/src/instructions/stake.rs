@@ -5,7 +5,10 @@ use crate::{
     StakeConfig, Vault, STAKE_INFO_SIZE,
 };
 use anchor_lang::{prelude::*, system_program};
-use anchor_spl::token::{self, Mint, Token, TokenAccount};
+use anchor_spl::{
+    associated_token::{self, AssociatedToken},
+    token::{self, Mint, Token, TokenAccount},
+};
 use solana_program::clock::Clock;
 
 use crate::constant::constants::STAKE_INFO_SEED;
@@ -17,7 +20,7 @@ pub struct Stake<'info> {
     pub signer: Signer<'info>,
 
     #[account(
-        seeds = [STAKE_CONFIG_SEED],
+        seeds = [STAKE_CONFIG_SEED, stake_currency_mint.key().as_ref()],
         bump,
     )]
     pub stake_config: Box<Account<'info, StakeConfig>>,
@@ -26,18 +29,20 @@ pub struct Stake<'info> {
         mut,
         seeds = [
             VAULT_SEED,
-            currency_mint.key().as_ref()
+            stake_config.key().as_ref(),
+            reward_currency_mint.key().as_ref()
         ],
         bump,
     )]
     pub vault: Box<Account<'info, Vault>>,
 
+    /// CHECK: staking ATA of vault
     #[account(
         mut,
-        associated_token::mint = currency_mint,
+        associated_token::mint = stake_currency_mint,
         associated_token::authority = vault
     )]
-    pub vault_token_account: Account<'info, TokenAccount>,
+    pub vault_staking_token_account: Account<'info, TokenAccount>,
 
     #[account(
         init_if_needed,
@@ -49,18 +54,25 @@ pub struct Stake<'info> {
     pub user_stake_info_pda: Account<'info, StakeInfo>,
 
     #[account(
-        mut,
-        associated_token::mint = currency_mint,
+        init_if_needed,
+        payer = signer,
+        associated_token::mint = stake_currency_mint,
         associated_token::authority = signer,
     )]
     pub user_token_account: Account<'info, TokenAccount>,
 
-    pub currency_mint: Account<'info, Mint>,
+    /// CHECK: the SPL token for rewarding, not staking
+    pub reward_currency_mint: Account<'info, Mint>,
+
+    // CHECK: the SPL token for staking, not rewarding
+    pub stake_currency_mint: Account<'info, Mint>,
 
     #[account(address = token::ID)]
     pub token_program: Program<'info, Token>,
     #[account(address = system_program::ID)]
     pub system_program: Program<'info, System>,
+    #[account(address = associated_token::ID)]
+    associated_token_program: Program<'info, AssociatedToken>,
 }
 
 pub fn stake(ctx: Context<Stake>, amount: u64) -> Result<()> {
@@ -79,8 +91,7 @@ pub fn stake(ctx: Context<Stake>, amount: u64) -> Result<()> {
         return Err(ErrorCode::VaultEnded.into());
     }
 
-    stake_info.un_staked_at_time =
-        current_timestamp + stake_config.bonding_curve_unbonding_period as i64;
+    stake_info.unstaked_at_time = current_timestamp + stake_config.lock_period as i64;
     stake_info.stake_amount += amount;
     vault.total_staked += amount;
     // check reach soft cap
@@ -93,7 +104,7 @@ pub fn stake(ctx: Context<Stake>, amount: u64) -> Result<()> {
     token_transfer_user(
         ctx.accounts.user_token_account.to_account_info(),
         &ctx.accounts.signer,
-        ctx.accounts.vault_token_account.to_account_info(),
+        ctx.accounts.vault_staking_token_account.to_account_info(),
         &ctx.accounts.token_program,
         amount,
     )?;

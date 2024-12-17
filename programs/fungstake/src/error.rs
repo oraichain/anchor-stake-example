@@ -12,4 +12,6 @@ pub enum ErrorCode {
     VaultEnded,
     #[msg("The unbonding time is not over yet")]
     UnbondingTimeNotOverYet,
+    #[msg("Soft cap reached, but need to wait til TGE. Cannot unstake!")]
+    TgeNotYetReached,
 }

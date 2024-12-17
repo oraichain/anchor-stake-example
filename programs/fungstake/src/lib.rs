@@ -14,18 +14,8 @@ declare_id!("J4Awz2tgfFUqDZorkaT3FMnV5Hy6vh8AbwvAMLNzpKJ1");
 pub mod fungstake {
     use super::*;
 
-    pub fn initialize(
-        ctx: Context<Initialize>,
-        bonding_curve_unbonding_period: u32,
-        max_unbonding_period: u32,
-        soft_cap: u64,
-    ) -> Result<()> {
-        initialize::initialize(
-            ctx,
-            bonding_curve_unbonding_period,
-            max_unbonding_period,
-            soft_cap,
-        )
+    pub fn initialize(ctx: Context<Initialize>, lock_period: u32, soft_cap: u64) -> Result<()> {
+        initialize::initialize(ctx, lock_period, soft_cap)
     }
 
     pub fn stake(ctx: Context<Stake>, amount: u64) -> Result<()> {
