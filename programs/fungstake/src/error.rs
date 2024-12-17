@@ -1,6 +1,5 @@
 use anchor_lang::prelude::*;
 
-
 #[error_code]
 pub enum ErrorCode {
     #[msg("Tokens are already staked")]
@@ -9,4 +8,8 @@ pub enum ErrorCode {
     NotStaked,
     #[msg("No Tokens to stake")]
     NoTokens,
+    #[msg("Vault has been ended")]
+    VaultEnded,
+    #[msg("The unbonding time is not over yet")]
+    UnbondingTimeNotOverYet,
 }

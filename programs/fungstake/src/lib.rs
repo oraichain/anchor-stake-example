@@ -6,6 +6,7 @@ pub mod state;
 pub use state::*;
 pub mod instructions;
 pub use instructions::*;
+pub mod utils;
 
 declare_id!("J4Awz2tgfFUqDZorkaT3FMnV5Hy6vh8AbwvAMLNzpKJ1");
 
@@ -33,5 +34,9 @@ pub mod fungstake {
 
     pub fn destake(ctx: Context<DeStake>) -> Result<()> {
         destake::destake(ctx)
+    }
+
+    pub fn create_vault(ctx: Context<CreateVault>) -> Result<()> {
+        ctx.accounts.process()
     }
 }

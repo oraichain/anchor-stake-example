@@ -1,7 +1,7 @@
 use anchor_lang::{prelude::*, system_program};
 use anchor_spl::{
-    associated_token::AssociatedToken,
-    token::{Mint, Token, TokenAccount},
+    associated_token::{self, AssociatedToken},
+    token::{self, Mint, Token, TokenAccount},
 };
 
 use crate::{
@@ -49,7 +49,9 @@ pub struct CreateVault<'info> {
     #[account(address = Rent::id())]
     pub rent: Sysvar<'info, Rent>,
 
+    #[account(address = token::ID)]
     token_program: Program<'info, Token>,
+    #[account(address = associated_token::ID)]
     associated_token_program: Program<'info, AssociatedToken>,
 }
 
@@ -58,6 +60,7 @@ impl<'info> CreateVault<'info> {
         let vault = &mut self.vault;
         vault.currency_mint = self.currency_mint.key();
         vault.total_staked = 0;
+        vault.end_time = 0;
 
         Ok(())
     }

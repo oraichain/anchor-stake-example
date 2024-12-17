@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 
 use crate::constant::constants;
 
-pub const VAULT_SIZE: usize = 8 + 1 + 1 + 8;
+pub const VAULT_SIZE: usize = 8 + 1 + 1 + 8 + 8;
 
 #[account]
 pub struct Vault {
@@ -13,6 +13,8 @@ pub struct Vault {
     pub currency_mint: Pubkey,
     /// total staked
     pub total_staked: u64,
+    // after this time, user cannot stake
+    pub end_time: i64,
 }
 
 impl Vault {

@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 
 use crate::constant::constants;
 
-pub const STAKE_CONFIG_SIZE: usize = 8 + 1 + 1 + 32 + 4 + 4 + 8;
+pub const STAKE_CONFIG_SIZE: usize = 8 + 1 + 1 + 32 + 4 + 4 + 8 + 8;
 
 #[account]
 pub struct StakeConfig {
@@ -17,6 +17,8 @@ pub struct StakeConfig {
     pub max_unbonding_period: u32,
     /// soft cap for token launch
     pub soft_cap: u64,
+    // Represents the time for which the lock can be extended after reaching the soft cap
+    pub lock_extend_time: u64,
 }
 
 impl StakeConfig {

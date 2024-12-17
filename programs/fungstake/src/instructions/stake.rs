@@ -1,16 +1,14 @@
 use crate::{
     constant::constants::{STAKE_CONFIG_SEED, VAULT_SEED},
     state::StakeInfo,
-    StakeConfig, Vault, STAKE_CONFIG_SIZE, STAKE_INFO_SIZE,
+    utils::token_transfer_user,
+    StakeConfig, Vault, STAKE_INFO_SIZE,
 };
-use anchor_lang::prelude::*;
-use anchor_spl::{
-    associated_token::{self, AssociatedToken},
-    token::{self, transfer, Mint, Token, TokenAccount, Transfer},
-};
+use anchor_lang::{prelude::*, system_program};
+use anchor_spl::token::{self, Mint, Token, TokenAccount};
 use solana_program::clock::Clock;
 
-use crate::constant::constants::{STAKE_INFO_SEED, TOKEN_SEED};
+use crate::constant::constants::STAKE_INFO_SEED;
 use crate::error::ErrorCode;
 
 #[derive(Accounts)]
@@ -25,6 +23,7 @@ pub struct Stake<'info> {
     pub stake_config: Box<Account<'info, StakeConfig>>,
 
     #[account(
+        mut,
         seeds = [
             VAULT_SEED,
             currency_mint.key().as_ref()
@@ -35,19 +34,14 @@ pub struct Stake<'info> {
 
     #[account(
         mut,
-        seeds = [
-            vault.key().as_ref(),
-            token::spl_token::ID.as_ref(),
-            currency_mint.key().as_ref(),
-        ],
-        bump,
-        seeds::program = associated_token::ID
+        associated_token::mint = currency_mint,
+        associated_token::authority = vault
     )]
-    pub token_vault_account: Account<'info, TokenAccount>,
+    pub vault_token_account: Account<'info, TokenAccount>,
 
     #[account(
         init_if_needed,
-        seeds = [STAKE_INFO_SEED, vault.key().as_ref(), currency_mint.key().as_ref(), signer.key.as_ref()],
+        seeds = [STAKE_INFO_SEED, vault.key().as_ref(), signer.key.as_ref()],
         bump,
         payer = signer,
         space = STAKE_INFO_SIZE
@@ -63,41 +57,45 @@ pub struct Stake<'info> {
 
     pub currency_mint: Account<'info, Mint>,
 
-    pub associated_token_program: Program<'info, AssociatedToken>,
+    #[account(address = token::ID)]
     pub token_program: Program<'info, Token>,
+    #[account(address = system_program::ID)]
     pub system_program: Program<'info, System>,
 }
 
 pub fn stake(ctx: Context<Stake>, amount: u64) -> Result<()> {
     let stake_info = &mut ctx.accounts.user_stake_info_pda;
-
-    if stake_info.is_staked {
-        return Err(ErrorCode::IsStaked.into());
-    }
+    let vault = &mut ctx.accounts.vault;
+    let stake_config = &mut ctx.accounts.stake_config;
 
     if amount <= 0 {
         return Err(ErrorCode::NoTokens.into());
     }
 
     let clock = Clock::get()?;
+    let current_timestamp = clock.unix_timestamp;
 
-    stake_info.staked_at_slot = clock.slot;
-    stake_info.is_staked = true;
+    if vault.end_time > 0 && current_timestamp > vault.end_time {
+        return Err(ErrorCode::VaultEnded.into());
+    }
 
-    let stake_amount = amount;
+    stake_info.un_staked_at_time =
+        current_timestamp + stake_config.bonding_curve_unbonding_period as i64;
+    stake_info.stake_amount += amount;
+    vault.total_staked += amount;
+    // check reach soft cap
+    if vault.total_staked >= stake_config.soft_cap {
+        vault.end_time = current_timestamp + stake_config.lock_extend_time as i64;
+    }
 
-    let transfer_accounts = Transfer {
-        from: ctx.accounts.user_token_account.to_account_info(),
-        to: ctx.accounts.user_stake_info_pda.to_account_info(),
-        authority: ctx.accounts.signer.to_account_info(),
-    };
-
-    let cpi_ctx = CpiContext::new(
-        ctx.accounts.token_program.to_account_info(),
-        transfer_accounts,
-    );
-
-    transfer(cpi_ctx, stake_amount)?;
+    // transfer(cpi_ctx, stake_amount)?;
+    token_transfer_user(
+        ctx.accounts.user_token_account.to_account_info(),
+        &ctx.accounts.signer,
+        ctx.accounts.vault_token_account.to_account_info(),
+        &ctx.accounts.token_program,
+        amount,
+    )?;
 
     Ok(())
 }

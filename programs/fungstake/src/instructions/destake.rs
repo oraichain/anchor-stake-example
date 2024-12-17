@@ -1,79 +1,47 @@
-use anchor_lang::prelude::*;
+use crate::{state::StakeInfo, utils::token_transfer_with_signer, Vault};
+use anchor_lang::{prelude::*, system_program};
 use anchor_spl::{
-    associated_token::AssociatedToken,
-    token::{transfer, Mint, TokenAccount, Token, Transfer},
+    associated_token::{self, AssociatedToken},
+    token::{self, Mint, Token, TokenAccount},
 };
 use solana_program::clock::Clock;
-use crate::state::StakeInfo;
 
+use crate::constant::constants::{STAKE_INFO_SEED, TOKEN_SEED, VAULT_SEED};
 use crate::error::ErrorCode;
-use crate::constant::constants::{STAKE_INFO_SEED,TOKEN_SEED,VAULT_SEED};
-
-
 
 pub fn destake(ctx: Context<DeStake>) -> Result<()> {
-    let stake_info = &mut ctx.accounts.stake_info_account;
+    let stake_info = &mut ctx.accounts.staker_info;
+    let vault = &mut ctx.accounts.vault;
+    let current_mint = ctx.accounts.currency_mint.to_account_info();
 
-    if !stake_info.is_staked {
+    if stake_info.stake_amount == 0 {
         return Err(ErrorCode::NotStaked.into());
     }
 
-    let clock = Clock::get()?;
+    let current_timestamp = Clock::get()?.unix_timestamp;
+    if current_timestamp < stake_info.un_staked_at_time {
+        return Err(ErrorCode::UnbondingTimeNotOverYet.into());
+    }
 
-    let slot_passed = clock.slot - stake_info.staked_at_slot;
+    let stake_amount = stake_info.stake_amount;
+    vault.total_staked -= stake_amount;
 
-    let stake_amount = ctx.accounts.stake_account.amount;
+    let current_mint_key = current_mint.key();
+    let vault_signer_seeds: &[&[&[u8]]] =
+        &[&[VAULT_SEED, &current_mint_key.as_ref(), &[ctx.bumps.vault]]];
 
-    let reward = slot_passed as u64;
-
-    let bump_for_vault = ctx.bumps.token_vault_account;
-
-    let signer_seeds_for_reward: &[&[&[u8]]] = &[&[VAULT_SEED, &[bump_for_vault]]];
-
-    let transfer_from_vault_accounts = Transfer {
-        from: ctx.accounts.token_vault_account.to_account_info(),
-        to: ctx.accounts.user_token_account.to_account_info(),
-        authority: ctx.accounts.token_vault_account.to_account_info(),
-    };
-
-    let ctxx = CpiContext::new_with_signer(
-        ctx.accounts.token_program.to_account_info(),
-        transfer_from_vault_accounts,
-        signer_seeds_for_reward,
-    );
-
-    transfer(ctxx, reward)?;
-
-    let staker = ctx.accounts.signer.key();
-
-    let bump_for_stake_account = ctx.bumps.stake_account;
-
-    let signer_seeds_for_user_stake: &[&[&[u8]]] = &[&[
-        TOKEN_SEED,
-        staker.as_ref(),
-        &[bump_for_stake_account],
-    ]];
-
-    let transfer_from_stake_accounts = Transfer {
-        from: ctx.accounts.stake_account.to_account_info(),
-        to: ctx.accounts.user_token_account.to_account_info(),
-        authority: ctx.accounts.stake_account.to_account_info(),
-    };
-
-    let ctx = CpiContext::new_with_signer(
-        ctx.accounts.token_program.to_account_info(),
-        transfer_from_stake_accounts,
-        signer_seeds_for_user_stake,
-    );
-
-    transfer(ctx, stake_amount)?;
-
-    stake_info.is_staked = false;
-    stake_info.staked_at_slot = clock.slot;
+    // transfer to user
+    token_transfer_with_signer(
+        ctx.accounts.vault_token_account.to_account_info(),
+        vault.to_account_info(),
+        ctx.accounts.staker_token_account.to_account_info(),
+        &ctx.accounts.token_program,
+        vault_signer_seeds,
+        stake_amount,
+    )?;
 
     Ok(())
 }
-
 
 #[derive(Accounts)]
 pub struct DeStake<'info> {
@@ -82,34 +50,40 @@ pub struct DeStake<'info> {
 
     #[account(
         mut,
-        seeds = [VAULT_SEED],
+        seeds = [
+            VAULT_SEED,
+            currency_mint.key().as_ref()
+        ],
         bump,
     )]
-    pub token_vault_account: Account<'info, TokenAccount>,
+    pub vault: Box<Account<'info, Vault>>,
 
     #[account(
         mut,
-        seeds = [STAKE_INFO_SEED, signer.key.as_ref()],
-        bump,
+        associated_token::mint = currency_mint,
+        associated_token::authority = vault
     )]
-    pub stake_info_account: Account<'info, StakeInfo>,
+    pub vault_token_account: Account<'info, TokenAccount>,
 
     #[account(
         mut,
-        seeds = [TOKEN_SEED, signer.key.as_ref()],
+        seeds = [STAKE_INFO_SEED, vault.key().as_ref(), signer.key.as_ref()],
         bump,
     )]
-    pub stake_account: Account<'info, TokenAccount>,
+    pub staker_info: Account<'info, StakeInfo>,
 
     #[account(
         mut,
-        associated_token::mint = mint,
+        associated_token::mint = currency_mint,
         associated_token::authority = signer,
     )]
-    pub user_token_account: Account<'info, TokenAccount>,
+    pub staker_token_account: Account<'info, TokenAccount>,
 
-    pub mint: Account<'info, Mint>,
+    pub currency_mint: Account<'info, Mint>,
+    #[account(address = associated_token::ID)]
     pub associated_token_program: Program<'info, AssociatedToken>,
+    #[account(address = token::ID)]
     pub token_program: Program<'info, Token>,
+    #[account(address = system_program::ID)]
     pub system_program: Program<'info, System>,
 }
