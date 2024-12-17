@@ -57,7 +57,7 @@ pub struct Stake<'info> {
 }
 
 pub fn stake(ctx: Context<Stake>, amount: u64) -> Result<()> {
-    let stake_info = &mut ctx.accounts.user_stake_pda;
+    let stake_info = &mut ctx.accounts.user_stake_info_pda;
 
     if stake_info.is_staked {
         return Err(ErrorCode::IsStaked.into());
@@ -76,7 +76,7 @@ pub fn stake(ctx: Context<Stake>, amount: u64) -> Result<()> {
 
     let transfer_accounts = Transfer {
         from: ctx.accounts.user_token_account.to_account_info(),
-        to: ctx.accounts.user_stake_ata.to_account_info(),
+        to: ctx.accounts.user_stake_info_pda.to_account_info(),
         authority: ctx.accounts.signer.to_account_info(),
     };
 

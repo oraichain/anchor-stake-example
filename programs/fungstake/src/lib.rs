@@ -7,7 +7,7 @@ pub use state::*;
 pub mod instructions;
 pub use instructions::*;
 
-declare_id!("5VgFt7VaM9eMchXbhLmepFvgwVBniab4PUYBskcYesML");
+declare_id!("J4Awz2tgfFUqDZorkaT3FMnV5Hy6vh8AbwvAMLNzpKJ1");
 
 #[program]
 pub mod fungstake {

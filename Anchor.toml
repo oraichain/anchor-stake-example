@@ -5,7 +5,7 @@ resolution = true
 skip-lint = false
 
 [programs.devnet]
-fungstake = "5VgFt7VaM9eMchXbhLmepFvgwVBniab4PUYBskcYesML"
+fungstake = "J4Awz2tgfFUqDZorkaT3FMnV5Hy6vh8AbwvAMLNzpKJ1"
 
 [registry]
 url = "https://api.apr.dev"
