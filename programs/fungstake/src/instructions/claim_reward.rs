@@ -134,12 +134,10 @@ fn get_earned_amount(
     total_staked_amount: u64,
     total_reward: u64,
 ) -> Result<u64> {
-    let staked_rate = staked_amount
-        .checked_div(total_staked_amount)
-        .ok_or::<ErrorCode>(ErrorCode::OverflowError.into())?;
     // Divide the losing pool by winning for earnings multiplier
-    let earned_amount = staked_rate
-        .checked_mul(total_reward)
-        .ok_or::<ErrorCode>(ErrorCode::OverflowError.into())?;
-    Ok(earned_amount)
+    Ok((staked_amount as u128)
+        .checked_mul(total_reward as u128)
+        .ok_or::<ErrorCode>(ErrorCode::OverflowError.into())?
+        .checked_div(total_staked_amount as u128)
+        .ok_or::<ErrorCode>(ErrorCode::OverflowError.into())? as u64)
 }
