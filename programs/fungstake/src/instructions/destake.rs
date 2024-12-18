@@ -30,10 +30,14 @@ pub fn destake(ctx: Context<DeStake>, amount: u64) -> Result<()> {
     if vault.end_time > 0 && current_timestamp <= vault.end_time {
         return Err(ErrorCode::TgeNotYetReached.into());
     }
-    stake_info.stake_amount -= amount;
+
+    // eg: stake amount = 9, amount = 10 -> unstake_amount = 9
+    let unstake_amount = std::cmp::min(stake_info.stake_amount, amount);
+
+    stake_info.stake_amount -= unstake_amount;
     // if soft cap reached -> don't subtract total stake & snapshot_amount of user
     if vault.end_time == 0 {
-        vault.total_staked -= amount;
+        vault.total_staked -= unstake_amount;
         stake_info.snapshot_amount = stake_info.stake_amount;
     }
 
@@ -44,7 +48,7 @@ pub fn destake(ctx: Context<DeStake>, amount: u64) -> Result<()> {
         ctx.accounts.staker_token_account.to_account_info(),
         &ctx.accounts.token_program,
         &[vault.auth_seeds(&vault_config.key().to_bytes()).as_ref()],
-        amount,
+        unstake_amount,
     )?;
 
     Ok(())
