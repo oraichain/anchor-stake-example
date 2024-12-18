@@ -52,6 +52,7 @@ pub struct ClaimReward<'info> {
 
     /// CHECK: pda should be init when stake
     #[account(
+        mut,
         seeds = [STAKE_INFO_SEED, vault.key().as_ref(), signer.key.as_ref()],
         bump,
     )]

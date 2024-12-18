@@ -306,7 +306,6 @@ describe("fungstake", () => {
     );
 
     const vault = await program.account.vault.fetch(vaultPda);
-    console.log(vault);
 
     assert.isAtLeast(vault.totalStaked.toNumber(), softCap);
     assert.equal(vault.reachSoftCap, true);
@@ -405,5 +404,93 @@ describe("fungstake", () => {
       userStakeBefore.stakeAmount.toNumber() - 10,
       userStakeAfter.stakeAmount.toNumber()
     );
+  });
+
+  it("Claim reward", async () => {
+    // mint reward to vault
+    let [configPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from(STAKE_CONFIG_SEED), stakeCurrencyMint.toBytes()],
+      program.programId
+    );
+    let [vaultPda] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from(VAULT_SEED),
+        configPda.toBytes(),
+        rewardCurrencyMint.toBytes(),
+      ],
+      program.programId
+    );
+    let vaultTokenAccount = await getOrCreateAssociatedTokenAccount(
+      connection,
+      payer.payer,
+      rewardCurrencyMint,
+      vaultPda,
+      true
+    );
+    let userTokenAccount = await getOrCreateAssociatedTokenAccount(
+      connection,
+      payer.payer,
+      rewardCurrencyMint,
+      payer.publicKey
+    );
+    await mintTo(
+      connection,
+      payer.payer,
+      rewardCurrencyMint,
+      vaultTokenAccount.address,
+      payer.payer,
+      20000000
+    );
+    let [userStakePda] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from(STAKE_INFO_SEED),
+        vaultPda.toBytes(),
+        payer.publicKey.toBytes(),
+      ],
+      program.programId
+    );
+
+    let userInfo = await program.account.stakeInfo.fetch(userStakePda);
+    let vault = await program.account.vault.fetch(vaultPda);
+
+    let claimable = new BN(20000000)
+      .mul(userInfo.snapshotAmount)
+      .div(vault.totalStaked);
+    let balanceBefore = (await getAccount(connection, userTokenAccount.address))
+      .amount;
+    // claim reward
+    await program.methods
+      .claimReward()
+      .accounts({
+        signer: payer.publicKey,
+        stakeCurrencyMint: stakeCurrencyMint,
+        rewardCurrencyMint: rewardCurrencyMint,
+      })
+      .rpc();
+    let balanceAfter = (await getAccount(connection, userTokenAccount.address))
+      .amount;
+
+    assert.equal(
+      Number(balanceBefore) + claimable.toNumber(),
+      Number(balanceAfter)
+    );
+
+    // try claim again, error
+    let willThrow = false;
+    try {
+      await program.methods
+        .claimReward()
+        .accounts({
+          signer: payer.publicKey,
+          stakeCurrencyMint: stakeCurrencyMint,
+          rewardCurrencyMint: rewardCurrencyMint,
+        })
+        .rpc();
+    } catch (error) {
+      willThrow = true;
+      assert.include(error.toString(), "AlreadyClaimed");
+    }
+
+    assert.equal(willThrow, true);
   });
 });
