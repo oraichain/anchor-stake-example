@@ -208,6 +208,42 @@ describe("fungstake", () => {
     assert.equal(vault.totalStaked.toNumber(), 55);
   });
 
+  it("It claim reward before vault reaching TGE", async () => {
+    let [configPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from(STAKE_CONFIG_SEED), stakeCurrencyMint.toBytes()],
+      program.programId
+    );
+    let [vaultPda] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from(VAULT_SEED),
+        configPda.toBytes(),
+        rewardCurrencyMint.toBytes(),
+      ],
+      program.programId
+    );
+    let vaultTokenAccount = await getOrCreateAssociatedTokenAccount(
+      connection,
+      payer.payer,
+      rewardCurrencyMint,
+      vaultPda,
+      true
+    );
+
+    // try claiming reward -> cant since vault hasnt started yet
+    try {
+      await program.methods
+        .claimReward()
+        .accounts({
+          signer: payer.publicKey,
+          stakeCurrencyMint,
+          rewardCurrencyMint,
+        })
+        .rpc();
+    } catch (error) {
+      assert.include(JSON.stringify(error), "VaultNotStarted");
+    }
+  });
+
   it("It unstake before reach soft cap", async () => {
     let [configPda] = PublicKey.findProgramAddressSync(
       [Buffer.from(STAKE_CONFIG_SEED), stakeCurrencyMint.toBytes()],
@@ -352,6 +388,22 @@ describe("fungstake", () => {
     assert.equal(willThrow, true);
   });
 
+  it("It cannot claim before tge time", async () => {
+    // try claiming reward -> cant since vault hasnt started yet
+    try {
+      await program.methods
+        .claimReward()
+        .accounts({
+          signer: payer.publicKey,
+          stakeCurrencyMint,
+          rewardCurrencyMint,
+        })
+        .rpc();
+    } catch (error) {
+      assert.include(JSON.stringify(error), "TgeNotYetReached.");
+    }
+  });
+
   it("It unstake after tge time", async () => {
     let [configPda] = PublicKey.findProgramAddressSync(
       [Buffer.from(STAKE_CONFIG_SEED), stakeCurrencyMint.toBytes()],
@@ -433,14 +485,6 @@ describe("fungstake", () => {
       rewardCurrencyMint,
       payer.publicKey
     );
-    await mintTo(
-      connection,
-      payer.payer,
-      rewardCurrencyMint,
-      vaultTokenAccount.address,
-      payer.payer,
-      20000000
-    );
     let [userStakePda] = PublicKey.findProgramAddressSync(
       [
         Buffer.from(STAKE_INFO_SEED),
@@ -458,6 +502,33 @@ describe("fungstake", () => {
       .div(vault.totalStaked);
     let balanceBefore = (await getAccount(connection, userTokenAccount.address))
       .amount;
+
+    // case: time is after tge, but no token in the reward vault yet -> still need to wait further
+    try {
+      // claim reward
+      await program.methods
+        .claimReward()
+        .accounts({
+          signer: payer.publicKey,
+          stakeCurrencyMint: stakeCurrencyMint,
+          rewardCurrencyMint: rewardCurrencyMint,
+        })
+        .rpc();
+    } catch (error) {
+      assert.include(JSON.stringify(error), "TgeNotYetReached");
+    }
+
+    // happy case: assume that we have reached TGE, and our reward vault has some tokens
+    const totalReward = 20000000;
+    await mintTo(
+      connection,
+      payer.payer,
+      rewardCurrencyMint,
+      vaultTokenAccount.address,
+      payer.payer,
+      totalReward
+    );
+
     // claim reward
     await program.methods
       .claimReward()
@@ -474,6 +545,11 @@ describe("fungstake", () => {
       Number(balanceBefore) + claimable.toNumber(),
       Number(balanceAfter)
     );
+
+    // validate reward vault after the first reward claim
+    let rewardVault = await program.account.vault.fetch(vaultPda);
+    assert.equal(rewardVault.reachTge, true);
+    assert.equal(rewardVault.totalReward.toNumber(), totalReward);
 
     // try claim again, error
     let willThrow = false;
