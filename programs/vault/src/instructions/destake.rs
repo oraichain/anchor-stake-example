@@ -42,21 +42,21 @@ pub struct DeStake<'info> {
         associated_token::mint = stake_currency_mint,
         associated_token::authority = vault
     )]
-    pub vault_token_account: Account<'info, TokenAccount>,
+    pub vault_token_account: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
         seeds = [STAKER_INFO_SEED, vault.key().as_ref(), signer.key.as_ref()],
         bump,
     )]
-    pub staker_info: Account<'info, StakerInfo>,
+    pub staker_info: Box<Account<'info, StakerInfo>>,
 
     #[account(
        mut,
-        seeds = [STAKE_DETAIL_SEED, vault.key().as_ref(), signer.key.as_ref(), &id.to_le_bytes()],
+        seeds = [STAKE_DETAIL_SEED, staker_info.key().as_ref(), &id.to_le_bytes()],
         bump,
     )]
-    pub stake_detail: Account<'info, StakeDetail>,
+    pub stake_detail: Box<Account<'info, StakeDetail>>,
 
     #[account(
         mut,
@@ -76,7 +76,7 @@ pub struct DeStake<'info> {
 }
 
 impl<'info> DeStake<'info> {
-    pub fn process(&mut self, id: u64, amount: u64) -> Result<()> {
+    pub fn process(&mut self, _: u64, amount: u64) -> Result<()> {
         let staker_info = &mut self.staker_info;
         let vault = &mut self.vault;
         let stake_detail = &mut self.stake_detail;
@@ -97,10 +97,10 @@ impl<'info> DeStake<'info> {
         stake_detail.stake_amount -= unstake_amount;
 
         // update staker info
-        staker_info.total_stake -= amount;
+        staker_info.total_stake -= unstake_amount;
 
         // update vault
-        vault.total_staked -= amount;
+        vault.total_staked -= unstake_amount;
 
         // transfer to user
         token_transfer_with_signer(

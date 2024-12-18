@@ -4,6 +4,7 @@ use anchor_spl::{
     token::{self, Mint, Token, TokenAccount},
 };
 
+use crate::error::ErrorCode;
 use crate::{
     constant::constants::{STAKE_CONFIG_SEED, VAULT_SEED},
     StakeConfig, Vault, VAULT_SIZE,
@@ -16,14 +17,14 @@ pub struct CreateVault<'info> {
     #[account(mut)]
     pub authority: Signer<'info>,
 
+    /// CHECK: must match authority of stake_config
     #[account(
         seeds = [STAKE_CONFIG_SEED, stake_currency_mint.key().as_ref()],
         bump,
-        has_one = authority
+        constraint = stake_config.authority == authority.key() @ErrorCode::IncorrectAuthority
     )]
     pub stake_config: Box<Account<'info, StakeConfig>>,
 
-    /// CHECK: currency_mint for rewarding, not staking
     pub stake_currency_mint: Account<'info, Mint>,
 
     #[account(

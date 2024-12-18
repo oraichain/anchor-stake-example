@@ -20,4 +20,10 @@ pub enum ErrorCode {
     OverflowError,
     #[msg("Already claimed")]
     AlreadyClaimed,
+    #[msg("IncorrectAuthority")]
+    IncorrectAuthority,
+    #[msg("Incorrect Stake detail ID. It must be current stake info id")]
+    IncorrectStakeDetailId,
+    #[msg("Incorrect Lock Period")]
+    IncorrectLockPeriod,
 }

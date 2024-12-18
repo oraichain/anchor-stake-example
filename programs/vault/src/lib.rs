@@ -8,7 +8,7 @@ pub mod instructions;
 pub use instructions::*;
 pub mod utils;
 
-declare_id!("5VgFt7VaM9eMchXbhLmepFvgwVBniab4PUYBskcYesML");
+declare_id!("9grg8RG2prncny136yjDMy5BZcwhB4NvqGMGDFs7QtKy");
 
 #[program]
 pub mod vault {
@@ -18,8 +18,8 @@ pub mod vault {
         ctx.accounts.process(ctx.bumps.stake_config)
     }
 
-    pub fn stake(ctx: Context<Stake>, amount: u64) -> Result<()> {
-        ctx.accounts.process(amount)
+    pub fn stake(ctx: Context<Stake>, lock_period: u64, amount: u64) -> Result<()> {
+        ctx.accounts.process(lock_period, amount)
     }
 
     pub fn destake(ctx: Context<DeStake>, id: u64, amount: u64) -> Result<()> {
