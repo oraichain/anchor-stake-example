@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 
 use crate::constant::constants;
 
-pub const VAULT_SIZE: usize = 8 + 1 + 1 + 32 + 8 + 8 + 1;
+pub const VAULT_SIZE: usize = 8 + 1 + 1 + 32 + 8 + 8 + 1 + 8 + 1;
 
 #[account]
 pub struct Vault {
@@ -17,6 +17,9 @@ pub struct Vault {
     pub end_time: i64,
     // reached threshold
     pub reach_soft_cap: bool,
+    /// total reward
+    pub total_reward: u64,
+    pub reach_tge: bool,
 }
 
 impl Vault {

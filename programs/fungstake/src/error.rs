@@ -10,8 +10,14 @@ pub enum ErrorCode {
     NoTokens,
     #[msg("Vault has been ended")]
     VaultEnded,
+    #[msg("Vault not started")]
+    VaultNotStarted,
     #[msg("The unbonding time is not over yet")]
     UnbondingTimeNotOverYet,
     #[msg("Soft cap reached, but need to wait til TGE. Cannot unstake!")]
     TgeNotYetReached,
+    #[msg("Overflow")]
+    OverflowError,
+    #[msg("Already claimed")]
+    AlreadyClaimed,
 }

@@ -26,12 +26,12 @@ pub fn destake(ctx: Context<DeStake>) -> Result<()> {
         return Err(ErrorCode::UnbondingTimeNotOverYet.into());
     }
 
-    let stake_amount = stake_info.stake_amount;
-    stake_info.stake_amount = 0;
     // if soft cap reached -> everyone needs to stay locked until reaching TGE -> ensure that the vault's softcap is valid
     if vault.end_time > 0 && current_timestamp <= vault.end_time {
         return Err(ErrorCode::TgeNotYetReached.into());
     }
+    let stake_amount = stake_info.stake_amount;
+    stake_info.stake_amount = 0;
 
     vault.total_staked -= stake_amount;
 

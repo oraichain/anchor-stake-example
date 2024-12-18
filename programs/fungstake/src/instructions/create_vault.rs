@@ -66,6 +66,9 @@ impl<'info> CreateVault<'info> {
         vault.reward_currency_mint = self.reward_currency_mint.key();
         vault.total_staked = 0;
         vault.end_time = 0;
+        vault.reach_tge = false;
+        vault.reach_soft_cap = false;
+        vault.total_reward = 0;
 
         Ok(())
     }

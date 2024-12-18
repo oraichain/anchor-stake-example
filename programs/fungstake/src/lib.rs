@@ -29,4 +29,8 @@ pub mod fungstake {
     pub fn create_vault(ctx: Context<CreateVault>) -> Result<()> {
         ctx.accounts.process()
     }
+    
+    pub fn claim_reward(ctx: Context<ClaimReward>) -> Result<()> {
+        ctx.accounts.process()
+    }
 }
