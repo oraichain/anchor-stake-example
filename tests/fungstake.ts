@@ -15,7 +15,7 @@ import {
   mintTo,
   TOKEN_PROGRAM_ID,
 } from '@solana/spl-token';
-import { STAKE_CONFIG_SEED, VAULT_SEED } from './constants';
+import { STAKE_CONFIG_SEED, STAKE_INFO_SEED, VAULT_SEED } from './constants';
 import { assert } from 'chai';
 
 describe('fungstake', () => {
@@ -152,7 +152,7 @@ describe('fungstake', () => {
       stakeCurrencyMint,
       userStakeTokenAccount.address,
       payer.payer,
-      200
+      20000000
     );
 
     const tx = await program.methods
@@ -164,5 +164,45 @@ describe('fungstake', () => {
       })
       .rpc();
     console.log('Your transaction signature stake', tx);
+
+    let [configPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from(STAKE_CONFIG_SEED), stakeCurrencyMint.toBytes()],
+      program.programId
+    );
+    let [vaultPda] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from(VAULT_SEED),
+        configPda.toBytes(),
+        rewardCurrencyMint.toBytes(),
+      ],
+      program.programId
+    );
+    let [userStakePda] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from(STAKE_INFO_SEED),
+        vaultPda.toBytes(),
+        payer.publicKey.toBytes(),
+      ],
+      program.programId
+    );
+    let userStakeInfo = await program.account.stakeInfo.fetch(userStakePda);
+    assert.equal(userStakeInfo.stakeAmount.toNumber(), 5);
+    assert.equal(userStakeInfo.snapshotAmount.toNumber(), 5);
+
+    // stake more
+    await program.methods
+      .stake(new BN(50))
+      .accounts({
+        signer: payer.publicKey,
+        stakeCurrencyMint: stakeCurrencyMint,
+        rewardCurrencyMint: rewardCurrencyMint,
+      })
+      .rpc();
+    userStakeInfo = await program.account.stakeInfo.fetch(userStakePda);
+    assert.equal(userStakeInfo.stakeAmount.toNumber(), 55);
+    assert.equal(userStakeInfo.snapshotAmount.toNumber(), 55);
+
+    const vault = await program.account.vault.fetch(vaultPda);
+    assert.equal(vault.totalStaked.toNumber(), 55);
   });
 });
