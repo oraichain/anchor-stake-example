@@ -1,30 +1,31 @@
-import * as anchor from '@coral-xyz/anchor';
-import { BN, Program } from '@coral-xyz/anchor';
-import { Fungstake } from '../target/types/fungstake';
+import * as anchor from "@coral-xyz/anchor";
+import { BN, Program } from "@coral-xyz/anchor";
+import { Fungstake } from "../target/types/fungstake";
 import {
   Connection,
   Keypair,
   LAMPORTS_PER_SOL,
   PublicKey,
   TransactionConfirmationStrategy,
-} from '@solana/web3.js';
+} from "@solana/web3.js";
 import {
   createMint,
   getAccount,
   getOrCreateAssociatedTokenAccount,
   mintTo,
   TOKEN_PROGRAM_ID,
-} from '@solana/spl-token';
-import { STAKE_CONFIG_SEED, STAKE_INFO_SEED, VAULT_SEED } from './constants';
-import { assert } from 'chai';
+} from "@solana/spl-token";
+import { STAKE_CONFIG_SEED, STAKE_INFO_SEED, VAULT_SEED } from "./constants";
+import { assert } from "chai";
+import { setTimeout } from "timers/promises";
 
-describe('fungstake', () => {
+describe("fungstake", () => {
   // Configure the client to use the local cluster.
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
 
   const payer = provider.wallet as anchor.Wallet;
-  const lockPeriod = 10000;
+  const lockPeriod = 3;
   const lockExtendTime = 100;
   const softCap = 10000;
 
@@ -43,7 +44,7 @@ describe('fungstake', () => {
           .then((sig) =>
             provider.connection.confirmTransaction(
               { signature: sig } as TransactionConfirmationStrategy,
-              'processed'
+              "processed"
             )
           );
       })
@@ -66,7 +67,7 @@ describe('fungstake', () => {
     );
   });
 
-  it('Is initialized!', async () => {
+  it("Is initialized!", async () => {
     // Add your test here.
 
     const tx = await program.methods
@@ -76,7 +77,7 @@ describe('fungstake', () => {
         stakeCurrencyMint: stakeCurrencyMint,
       })
       .rpc();
-    console.log('Your transaction signature', tx);
+    console.log("Your transaction signature", tx);
     // get config
     let [configPda] = PublicKey.findProgramAddressSync(
       [Buffer.from(STAKE_CONFIG_SEED), stakeCurrencyMint.toBytes()],
@@ -96,7 +97,7 @@ describe('fungstake', () => {
     assert.equal(configAccount.softCap.toString(), softCap.toString());
   });
 
-  it('Create vault', async () => {
+  it("Create vault", async () => {
     const tx = await program.methods
       .createVault()
       .accounts({
@@ -106,7 +107,7 @@ describe('fungstake', () => {
       })
       .rpc();
 
-    console.log('Your transaction signature create vault', tx);
+    console.log("Your transaction signature create vault", tx);
 
     // get vault
     let [configPda] = PublicKey.findProgramAddressSync(
@@ -133,7 +134,7 @@ describe('fungstake', () => {
     assert.equal(vault.reachTge, false);
   });
 
-  it('It stake', async () => {
+  it("It stake before reach soft cap", async () => {
     let userStakeTokenAccount = await getOrCreateAssociatedTokenAccount(
       connection,
       payer.payer,
@@ -142,7 +143,7 @@ describe('fungstake', () => {
     );
 
     console.log(
-      'bal',
+      "bal",
       (await getAccount(connection, userStakeTokenAccount.address)).amount
     );
 
@@ -163,7 +164,7 @@ describe('fungstake', () => {
         rewardCurrencyMint: rewardCurrencyMint,
       })
       .rpc();
-    console.log('Your transaction signature stake', tx);
+    console.log("Your transaction signature stake", tx);
 
     let [configPda] = PublicKey.findProgramAddressSync(
       [Buffer.from(STAKE_CONFIG_SEED), stakeCurrencyMint.toBytes()],
@@ -204,5 +205,63 @@ describe('fungstake', () => {
 
     const vault = await program.account.vault.fetch(vaultPda);
     assert.equal(vault.totalStaked.toNumber(), 55);
+  });
+
+  it("It unstake before reach soft cap", async () => {
+    let [configPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from(STAKE_CONFIG_SEED), stakeCurrencyMint.toBytes()],
+      program.programId
+    );
+    let [vaultPda] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from(VAULT_SEED),
+        configPda.toBytes(),
+        rewardCurrencyMint.toBytes(),
+      ],
+      program.programId
+    );
+    let [userStakePda] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from(STAKE_INFO_SEED),
+        vaultPda.toBytes(),
+        payer.publicKey.toBytes(),
+      ],
+      program.programId
+    );
+    let userStakeBefore = await program.account.stakeInfo.fetch(userStakePda);
+
+    // try unstake
+    // case 1: error: The unbonding time is not over yet.
+    let willThrow = false;
+    try {
+      await program.methods
+        .destake(new BN(10))
+        .accounts({
+          signer: payer.publicKey,
+          stakeCurrencyMint: stakeCurrencyMint,
+          rewardCurrencyMint: rewardCurrencyMint,
+        })
+        .rpc();
+    } catch (error) {
+      willThrow = true;
+      assert.include(error.toString(), "UnbondingTimeNotOverYet");
+    }
+    assert.equal(willThrow, true);
+
+    // case 2:  success
+    await setTimeout((lockPeriod + 1) * 1000);
+    await program.methods
+      .destake(new BN(10))
+      .accounts({
+        signer: payer.publicKey,
+        stakeCurrencyMint: stakeCurrencyMint,
+        rewardCurrencyMint: rewardCurrencyMint,
+      })
+      .rpc();
+    let userStakeAfter = await program.account.stakeInfo.fetch(userStakePda);
+    assert.equal(
+      userStakeBefore.stakeAmount.toNumber() - 10,
+      userStakeAfter.stakeAmount.toNumber()
+    );
   });
 });

@@ -103,7 +103,7 @@ impl<'info> DeStake<'info> {
             vault.to_account_info(),
             self.staker_token_account.to_account_info(),
             &self.token_program,
-            &[vault.auth_seeds(&vault_config.key().to_bytes()).as_ref()],
+            &[&vault.auth_seeds(&vault_config.key().to_bytes())],
             unstake_amount,
         )?;
 

@@ -61,8 +61,9 @@ pub struct CreateVault<'info> {
 }
 
 impl<'info> CreateVault<'info> {
-    pub fn process(&mut self) -> Result<()> {
+    pub fn process(&mut self, vault_bump: u8) -> Result<()> {
         let vault = &mut self.vault;
+        vault.bump = [vault_bump];
         vault.reward_currency_mint = self.reward_currency_mint.key();
         vault.total_staked = 0;
         vault.end_time = 0;

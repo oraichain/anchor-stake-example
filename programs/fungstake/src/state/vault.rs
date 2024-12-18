@@ -26,7 +26,7 @@ impl Vault {
     /// Seeds are unique to authority/pyth feed/currency mint combinations
     pub fn auth_seeds<'a>(&'a self, vault_config: &'a [u8]) -> [&'a [u8]; 4] {
         [
-            constants::VAULT_SEED.as_ref(),
+            constants::VAULT_SEED,
             vault_config,
             self.reward_currency_mint.as_ref(),
             self.bump.as_ref(),
