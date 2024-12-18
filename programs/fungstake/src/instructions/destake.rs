@@ -33,8 +33,6 @@ pub fn destake(ctx: Context<DeStake>) -> Result<()> {
     let stake_amount = stake_info.stake_amount;
     stake_info.stake_amount = 0;
 
-    vault.total_staked -= stake_amount;
-
     // transfer to user
     token_transfer_with_signer(
         ctx.accounts.vault_token_account.to_account_info(),

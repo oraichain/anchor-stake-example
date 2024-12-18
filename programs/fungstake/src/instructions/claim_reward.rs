@@ -89,7 +89,7 @@ impl<'info> ClaimReward<'info> {
         let current_timestamp = clock.unix_timestamp;
 
         // can only claim reward after tge
-        if self.vault.end_time > 0 && current_timestamp <= self.vault.end_time {
+        if current_timestamp <= self.vault.end_time {
             return Err(ErrorCode::TgeNotYetReached.into());
         }
 
