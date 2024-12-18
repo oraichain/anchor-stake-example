@@ -25,8 +25,9 @@ describe("fungstake", () => {
   anchor.setProvider(provider);
 
   const payer = provider.wallet as anchor.Wallet;
+  const user2 = anchor.web3.Keypair.generate();
   const lockPeriod = 3;
-  const lockExtendTime = 100;
+  const lockExtendTime = 3;
   const softCap = 10000;
 
   let stakeCurrencyMint: PublicKey;
@@ -38,7 +39,7 @@ describe("fungstake", () => {
   // create tx map config
   before(async () => {
     await Promise.all(
-      [payer].map(async (keypair) => {
+      [payer, user2].map(async (keypair) => {
         return provider.connection
           .requestAirdrop(keypair.publicKey, 100 * LAMPORTS_PER_SOL)
           .then((sig) =>
@@ -259,6 +260,147 @@ describe("fungstake", () => {
       })
       .rpc();
     let userStakeAfter = await program.account.stakeInfo.fetch(userStakePda);
+    assert.equal(
+      userStakeBefore.stakeAmount.toNumber() - 10,
+      userStakeAfter.stakeAmount.toNumber()
+    );
+  });
+
+  it("It stake reach soft cap", async () => {
+    let userStakeTokenAccount = await getOrCreateAssociatedTokenAccount(
+      connection,
+      user2,
+      stakeCurrencyMint,
+      user2.publicKey
+    );
+
+    await mintTo(
+      connection,
+      payer.payer,
+      stakeCurrencyMint,
+      userStakeTokenAccount.address,
+      payer.payer,
+      20000000
+    );
+    await program.methods
+      .stake(new BN(softCap))
+      .accounts({
+        signer: user2.publicKey,
+        stakeCurrencyMint: stakeCurrencyMint,
+        rewardCurrencyMint: rewardCurrencyMint,
+      })
+      .signers([user2])
+      .rpc();
+
+    let [configPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from(STAKE_CONFIG_SEED), stakeCurrencyMint.toBytes()],
+      program.programId
+    );
+    let [vaultPda] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from(VAULT_SEED),
+        configPda.toBytes(),
+        rewardCurrencyMint.toBytes(),
+      ],
+      program.programId
+    );
+
+    const vault = await program.account.vault.fetch(vaultPda);
+    console.log(vault);
+
+    assert.isAtLeast(vault.totalStaked.toNumber(), softCap);
+    assert.equal(vault.reachSoftCap, true);
+  });
+
+  it("Cannot unstake before tge time", async () => {
+    let [configPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from(STAKE_CONFIG_SEED), stakeCurrencyMint.toBytes()],
+      program.programId
+    );
+    let [vaultPda] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from(VAULT_SEED),
+        configPda.toBytes(),
+        rewardCurrencyMint.toBytes(),
+      ],
+      program.programId
+    );
+    let [userStakePda] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from(STAKE_INFO_SEED),
+        vaultPda.toBytes(),
+        payer.publicKey.toBytes(),
+      ],
+      program.programId
+    );
+
+    // try unstake
+    // case 1: error: The unbonding time is not over yet.
+    let willThrow = false;
+    try {
+      await program.methods
+        .destake(new BN(10))
+        .accounts({
+          signer: payer.publicKey,
+          stakeCurrencyMint: stakeCurrencyMint,
+          rewardCurrencyMint: rewardCurrencyMint,
+        })
+        .rpc();
+    } catch (error) {
+      willThrow = true;
+      assert.include(error.toString(), "TgeNotYetReached.");
+    }
+    assert.equal(willThrow, true);
+  });
+
+  it("It unstake after tge time", async () => {
+    let [configPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from(STAKE_CONFIG_SEED), stakeCurrencyMint.toBytes()],
+      program.programId
+    );
+    let [vaultPda] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from(VAULT_SEED),
+        configPda.toBytes(),
+        rewardCurrencyMint.toBytes(),
+      ],
+      program.programId
+    );
+
+    let [userStakePda] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from(STAKE_INFO_SEED),
+        vaultPda.toBytes(),
+        payer.publicKey.toBytes(),
+      ],
+      program.programId
+    );
+
+    const vaultBefore = await program.account.vault.fetch(vaultPda);
+    const userStakeBefore = await program.account.stakeInfo.fetch(userStakePda);
+
+    await setTimeout((lockExtendTime + 2) * 1000);
+
+    await program.methods
+      .destake(new BN(10))
+      .accounts({
+        signer: payer.publicKey,
+        stakeCurrencyMint: stakeCurrencyMint,
+        rewardCurrencyMint: rewardCurrencyMint,
+      })
+      .rpc();
+
+    const vaultAfter = await program.account.vault.fetch(vaultPda);
+    const userStakeAfter = await program.account.stakeInfo.fetch(userStakePda);
+
+    assert.equal(
+      vaultBefore.totalStaked.toNumber(),
+      vaultAfter.totalStaked.toNumber()
+    );
+    assert.equal(
+      userStakeBefore.snapshotAmount.toNumber(),
+      userStakeAfter.snapshotAmount.toNumber()
+    );
     assert.equal(
       userStakeBefore.stakeAmount.toNumber() - 10,
       userStakeAfter.stakeAmount.toNumber()

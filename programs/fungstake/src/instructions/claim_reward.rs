@@ -32,6 +32,7 @@ pub struct ClaimReward<'info> {
     pub stake_currency_mint: Account<'info, Mint>,
 
     #[account(
+        mut,
         seeds = [
             VAULT_SEED,
             stake_config.key().as_ref(),
@@ -43,6 +44,7 @@ pub struct ClaimReward<'info> {
 
     /// CHECK: vault_reward_token_account should be init by the launchpad program
     #[account(
+        mut,
         associated_token::mint = reward_currency_mint,
         associated_token::authority = vault
     )]
@@ -77,11 +79,14 @@ pub struct ClaimReward<'info> {
 
 impl<'info> ClaimReward<'info> {
     pub fn process(&mut self) -> Result<()> {
+        let vault = &mut self.vault;
+        let vault_config = &self.stake_config.to_account_info();
+
         if self.user_stake_info_pda.has_claimed {
             return Err(ErrorCode::AlreadyClaimed.into());
         }
 
-        if self.vault.end_time == 0 {
+        if vault.end_time == 0 {
             return Err(ErrorCode::VaultNotStarted.into());
         }
 
@@ -89,39 +94,36 @@ impl<'info> ClaimReward<'info> {
         let current_timestamp = clock.unix_timestamp;
 
         // can only claim reward after tge
-        if current_timestamp <= self.vault.end_time {
+        if current_timestamp <= vault.end_time {
             return Err(ErrorCode::TgeNotYetReached.into());
         }
 
         // For the first user who claims the reward, update vault's total reward
-        if !self.vault.reach_tge {
+        if !vault.reach_tge {
             // this means relayer has not invoked tge yet, can't claim
             if self.vault_reward_token_account.amount == 0 {
                 return Err(ErrorCode::TgeNotYetReached.into());
             }
 
-            self.vault.reach_tge = true;
+            vault.reach_tge = true;
             // update vault's reward balance
-            self.vault.total_reward = self.vault_reward_token_account.amount;
+            vault.total_reward = self.vault_reward_token_account.amount;
         }
 
         let earned_amount = get_earned_amount(
             self.user_stake_info_pda.snapshot_amount,
-            self.vault.total_staked,
-            self.vault.total_reward,
+            vault.total_staked,
+            vault.total_reward,
         )?;
 
         self.user_stake_info_pda.has_claimed = true;
 
         token_transfer_with_signer(
             self.vault_reward_token_account.to_account_info(),
-            self.vault.to_account_info(),
+            vault.to_account_info(),
             self.user_reward_token_account.to_account_info(),
             &self.token_program,
-            &[self
-                .vault
-                .auth_seeds(&self.stake_config.key().to_bytes())
-                .as_ref()],
+            &[&vault.auth_seeds(&vault_config.key().to_bytes())],
             earned_amount,
         )?;
 
