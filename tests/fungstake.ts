@@ -15,6 +15,8 @@ import {
   mintTo,
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
+import { STAKE_CONFIG_SEED } from "./constants";
+import { assert } from "chai";
 
 describe("fungstake", () => {
   // Configure the client to use the local cluster.
@@ -22,6 +24,9 @@ describe("fungstake", () => {
   anchor.setProvider(provider);
 
   const payer = provider.wallet as anchor.Wallet;
+  const lockPeriod = 10000;
+  const lockExtendTime = 100;
+  const softCap = 10000;
 
   let stakeCurrencyMint: PublicKey;
   let rewardCurrencyMint: PublicKey;
@@ -65,13 +70,30 @@ describe("fungstake", () => {
     // Add your test here.
 
     const tx = await program.methods
-      .initialize(10000, new BN(10000))
+      .initialize(lockPeriod, lockExtendTime, new BN(softCap))
       .accounts({
         signer: payer.publicKey,
         stakeCurrencyMint: stakeCurrencyMint,
       })
       .rpc();
     console.log("Your transaction signature", tx);
+    // get config
+    let [configPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from(STAKE_CONFIG_SEED), stakeCurrencyMint.toBytes()],
+      program.programId
+    );
+    const configAccount = await program.account.stakeConfig.fetch(configPda);
+    assert.equal(
+      configAccount.authority.toBase58(),
+      payer.publicKey.toBase58()
+    );
+    assert.equal(
+      configAccount.stakeCurrencyMint.toBase58(),
+      stakeCurrencyMint.toBase58()
+    );
+    assert.equal(configAccount.lockPeriod, lockPeriod);
+    assert.equal(configAccount.lockExtendTime, lockExtendTime);
+    assert.equal(configAccount.softCap.toString(), softCap.toString());
   });
 
   it("Create vault", async () => {

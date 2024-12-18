@@ -14,9 +14,18 @@ declare_id!("5VgFt7VaM9eMchXbhLmepFvgwVBniab4PUYBskcYesML");
 pub mod fungstake {
     use super::*;
 
-    pub fn initialize(ctx: Context<Initialize>, lock_period: u32, soft_cap: u64) -> Result<()> {
-        ctx.accounts
-            .process(lock_period, soft_cap, ctx.bumps.stake_config)
+    pub fn initialize(
+        ctx: Context<Initialize>,
+        lock_period: u32,
+        lock_extend_time: u32,
+        soft_cap: u64,
+    ) -> Result<()> {
+        ctx.accounts.process(
+            lock_period,
+            lock_extend_time,
+            soft_cap,
+            ctx.bumps.stake_config,
+        )
     }
 
     pub fn stake(ctx: Context<Stake>, amount: u64) -> Result<()> {

@@ -30,7 +30,13 @@ pub struct Initialize<'info> {
 }
 
 impl<'info> Initialize<'info> {
-    pub fn process(&mut self, lock_period: u32, soft_cap: u64, bump: u8) -> Result<()> {
+    pub fn process(
+        &mut self,
+        lock_period: u32,
+        lock_extend_time: u32,
+        soft_cap: u64,
+        bump: u8,
+    ) -> Result<()> {
         let stake_config = &mut self.stake_config;
         stake_config.authority = self.signer.to_account_info().key();
         stake_config.stake_currency_mint = self.stake_currency_mint.to_account_info().key();
@@ -38,6 +44,7 @@ impl<'info> Initialize<'info> {
         stake_config.lock_period = lock_period;
         stake_config.version = 1;
         stake_config.soft_cap = soft_cap;
+        stake_config.lock_extend_time = lock_extend_time;
 
         Ok(())
     }
