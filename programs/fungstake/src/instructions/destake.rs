@@ -32,9 +32,10 @@ pub fn destake(ctx: Context<DeStake>) -> Result<()> {
     }
     let stake_amount = stake_info.stake_amount;
     stake_info.stake_amount = 0;
-    // if soft cap reached -> don't subtract total stake
+    // if soft cap reached -> don't subtract total stake & snapshot_amount of user
     if vault.end_time == 0 {
         vault.total_staked -= stake_amount;
+        stake_info.snapshot_amount = 0;
     }
 
     // transfer to user

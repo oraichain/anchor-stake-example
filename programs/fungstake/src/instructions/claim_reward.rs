@@ -106,7 +106,7 @@ impl<'info> ClaimReward<'info> {
         }
 
         let earned_amount = get_earned_amount(
-            self.user_stake_info_pda.stake_amount,
+            self.user_stake_info_pda.snapshot_amount,
             self.vault.total_staked,
             self.vault.total_reward,
         )?;

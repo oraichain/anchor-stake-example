@@ -93,6 +93,8 @@ pub fn stake(ctx: Context<Stake>, amount: u64) -> Result<()> {
 
     stake_info.unstaked_at_time = current_timestamp + stake_config.lock_period as i64;
     stake_info.stake_amount += amount;
+    stake_info.snapshot_amount = stake_info.stake_amount;
+
     vault.total_staked += amount;
     // check reach soft cap. Only update end_time one time
     if !vault.reach_soft_cap && vault.total_staked >= stake_config.soft_cap {
