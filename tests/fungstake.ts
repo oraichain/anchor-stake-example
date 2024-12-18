@@ -1,24 +1,24 @@
-import * as anchor from "@coral-xyz/anchor";
-import { BN, Program } from "@coral-xyz/anchor";
-import { Fungstake } from "../target/types/fungstake";
+import * as anchor from '@coral-xyz/anchor';
+import { BN, Program } from '@coral-xyz/anchor';
+import { Fungstake } from '../target/types/fungstake';
 import {
   Connection,
   Keypair,
   LAMPORTS_PER_SOL,
   PublicKey,
   TransactionConfirmationStrategy,
-} from "@solana/web3.js";
+} from '@solana/web3.js';
 import {
   createMint,
   getAccount,
   getOrCreateAssociatedTokenAccount,
   mintTo,
   TOKEN_PROGRAM_ID,
-} from "@solana/spl-token";
-import { STAKE_CONFIG_SEED } from "./constants";
-import { assert } from "chai";
+} from '@solana/spl-token';
+import { STAKE_CONFIG_SEED, VAULT_SEED } from './constants';
+import { assert } from 'chai';
 
-describe("fungstake", () => {
+describe('fungstake', () => {
   // Configure the client to use the local cluster.
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
@@ -43,7 +43,7 @@ describe("fungstake", () => {
           .then((sig) =>
             provider.connection.confirmTransaction(
               { signature: sig } as TransactionConfirmationStrategy,
-              "processed"
+              'processed'
             )
           );
       })
@@ -66,7 +66,7 @@ describe("fungstake", () => {
     );
   });
 
-  it("Is initialized!", async () => {
+  it('Is initialized!', async () => {
     // Add your test here.
 
     const tx = await program.methods
@@ -76,7 +76,7 @@ describe("fungstake", () => {
         stakeCurrencyMint: stakeCurrencyMint,
       })
       .rpc();
-    console.log("Your transaction signature", tx);
+    console.log('Your transaction signature', tx);
     // get config
     let [configPda] = PublicKey.findProgramAddressSync(
       [Buffer.from(STAKE_CONFIG_SEED), stakeCurrencyMint.toBytes()],
@@ -96,7 +96,7 @@ describe("fungstake", () => {
     assert.equal(configAccount.softCap.toString(), softCap.toString());
   });
 
-  it("Create vault", async () => {
+  it('Create vault', async () => {
     const tx = await program.methods
       .createVault()
       .accounts({
@@ -105,10 +105,35 @@ describe("fungstake", () => {
         rewardCurrencyMint: rewardCurrencyMint,
       })
       .rpc();
-    console.log("Your transaction signature create vault", tx);
+
+    console.log('Your transaction signature create vault', tx);
+
+    // get vault
+    let [configPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from(STAKE_CONFIG_SEED), stakeCurrencyMint.toBytes()],
+      program.programId
+    );
+    let [vaultPda] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from(VAULT_SEED),
+        configPda.toBytes(),
+        rewardCurrencyMint.toBytes(),
+      ],
+      program.programId
+    );
+    const vault = await program.account.vault.fetch(vaultPda);
+    assert.equal(
+      vault.rewardCurrencyMint.toBase58(),
+      rewardCurrencyMint.toBase58()
+    );
+    assert.equal(vault.totalStaked.toNumber(), 0);
+    assert.equal(vault.endTime.toNumber(), 0);
+    assert.equal(vault.reachSoftCap, false);
+    assert.equal(vault.totalReward.toNumber(), 0);
+    assert.equal(vault.reachTge, false);
   });
 
-  it("It stake", async () => {
+  it('It stake', async () => {
     let userStakeTokenAccount = await getOrCreateAssociatedTokenAccount(
       connection,
       payer.payer,
@@ -117,7 +142,7 @@ describe("fungstake", () => {
     );
 
     console.log(
-      "bal",
+      'bal',
       (await getAccount(connection, userStakeTokenAccount.address)).amount
     );
 
@@ -138,6 +163,6 @@ describe("fungstake", () => {
         rewardCurrencyMint: rewardCurrencyMint,
       })
       .rpc();
-    console.log("Your transaction signature stake", tx);
+    console.log('Your transaction signature stake', tx);
   });
 });
