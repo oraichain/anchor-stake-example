@@ -12,48 +12,6 @@ use solana_program::clock::Clock;
 use crate::constant::constants::{STAKE_INFO_SEED, VAULT_SEED};
 use crate::error::ErrorCode;
 
-pub fn destake(ctx: Context<DeStake>, amount: u64) -> Result<()> {
-    let stake_info = &mut ctx.accounts.staker_info;
-    let vault = &mut ctx.accounts.vault;
-    let vault_config = &ctx.accounts.stake_config.to_account_info();
-
-    if stake_info.stake_amount == 0 {
-        return Err(ErrorCode::NotStaked.into());
-    }
-
-    let current_timestamp = Clock::get()?.unix_timestamp;
-    if current_timestamp < stake_info.unstaked_at_time {
-        return Err(ErrorCode::UnbondingTimeNotOverYet.into());
-    }
-
-    // if soft cap reached -> everyone needs to stay locked until reaching TGE -> ensure that the vault's softcap is valid
-    if vault.end_time > 0 && current_timestamp <= vault.end_time {
-        return Err(ErrorCode::TgeNotYetReached.into());
-    }
-
-    // eg: stake amount = 9, amount = 10 -> unstake_amount = 9
-    let unstake_amount = std::cmp::min(stake_info.stake_amount, amount);
-
-    stake_info.stake_amount -= unstake_amount;
-    // if soft cap reached -> don't subtract total stake & snapshot_amount of user
-    if vault.end_time == 0 {
-        vault.total_staked -= unstake_amount;
-        stake_info.snapshot_amount = stake_info.stake_amount;
-    }
-
-    // transfer to user
-    token_transfer_with_signer(
-        ctx.accounts.vault_token_account.to_account_info(),
-        vault.to_account_info(),
-        ctx.accounts.staker_token_account.to_account_info(),
-        &ctx.accounts.token_program,
-        &[vault.auth_seeds(&vault_config.key().to_bytes()).as_ref()],
-        unstake_amount,
-    )?;
-
-    Ok(())
-}
-
 #[derive(Accounts)]
 pub struct DeStake<'info> {
     #[account(mut)]
@@ -107,4 +65,48 @@ pub struct DeStake<'info> {
     pub token_program: Program<'info, Token>,
     #[account(address = system_program::ID)]
     pub system_program: Program<'info, System>,
+}
+
+impl<'info> DeStake<'info> {
+    pub fn process(&mut self, amount: u64) -> Result<()> {
+        let stake_info = &mut self.staker_info;
+        let vault = &mut self.vault;
+        let vault_config = &self.stake_config.to_account_info();
+
+        if stake_info.stake_amount == 0 {
+            return Err(ErrorCode::NotStaked.into());
+        }
+
+        let current_timestamp = Clock::get()?.unix_timestamp;
+        if current_timestamp < stake_info.unstaked_at_time {
+            return Err(ErrorCode::UnbondingTimeNotOverYet.into());
+        }
+
+        // if soft cap reached -> everyone needs to stay locked until reaching TGE -> ensure that the vault's softcap is valid
+        if vault.end_time > 0 && current_timestamp <= vault.end_time {
+            return Err(ErrorCode::TgeNotYetReached.into());
+        }
+
+        // eg: stake amount = 9, amount = 10 -> unstake_amount = 9
+        let unstake_amount = std::cmp::min(stake_info.stake_amount, amount);
+
+        stake_info.stake_amount -= unstake_amount;
+        // if soft cap reached -> don't subtract total stake & snapshot_amount of user
+        if vault.end_time == 0 {
+            vault.total_staked -= unstake_amount;
+            stake_info.snapshot_amount = stake_info.stake_amount;
+        }
+
+        // transfer to user
+        token_transfer_with_signer(
+            self.vault_token_account.to_account_info(),
+            vault.to_account_info(),
+            self.staker_token_account.to_account_info(),
+            &self.token_program,
+            &[vault.auth_seeds(&vault_config.key().to_bytes()).as_ref()],
+            unstake_amount,
+        )?;
+
+        Ok(())
+    }
 }

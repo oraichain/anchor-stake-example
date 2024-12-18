@@ -75,41 +75,43 @@ pub struct Stake<'info> {
     associated_token_program: Program<'info, AssociatedToken>,
 }
 
-pub fn stake(ctx: Context<Stake>, amount: u64) -> Result<()> {
-    let stake_info = &mut ctx.accounts.user_stake_info_pda;
-    let vault = &mut ctx.accounts.vault;
-    let stake_config = &mut ctx.accounts.stake_config;
+impl<'info> Stake<'info> {
+    pub fn process(&mut self, amount: u64) -> Result<()> {
+        let stake_info = &mut self.user_stake_info_pda;
+        let vault = &mut self.vault;
+        let stake_config = &mut self.stake_config;
 
-    if amount <= 0 {
-        return Err(ErrorCode::NoTokens.into());
+        if amount <= 0 {
+            return Err(ErrorCode::NoTokens.into());
+        }
+
+        let clock = Clock::get()?;
+        let current_timestamp = clock.unix_timestamp;
+
+        if vault.end_time > 0 && current_timestamp > vault.end_time {
+            return Err(ErrorCode::VaultEnded.into());
+        }
+
+        stake_info.unstaked_at_time = current_timestamp + stake_config.lock_period as i64;
+        stake_info.stake_amount += amount;
+        stake_info.snapshot_amount = stake_info.stake_amount;
+
+        vault.total_staked += amount;
+        // check reach soft cap. Only update end_time one time
+        if !vault.reach_soft_cap && vault.total_staked >= stake_config.soft_cap {
+            vault.end_time = current_timestamp + stake_config.lock_extend_time as i64;
+            vault.reach_soft_cap = true;
+        }
+
+        // transfer(cpi_ctx, stake_amount)?;
+        token_transfer_user(
+            self.user_token_account.to_account_info(),
+            &self.signer,
+            self.vault_staking_token_account.to_account_info(),
+            &self.token_program,
+            amount,
+        )?;
+
+        Ok(())
     }
-
-    let clock = Clock::get()?;
-    let current_timestamp = clock.unix_timestamp;
-
-    if vault.end_time > 0 && current_timestamp > vault.end_time {
-        return Err(ErrorCode::VaultEnded.into());
-    }
-
-    stake_info.unstaked_at_time = current_timestamp + stake_config.lock_period as i64;
-    stake_info.stake_amount += amount;
-    stake_info.snapshot_amount = stake_info.stake_amount;
-
-    vault.total_staked += amount;
-    // check reach soft cap. Only update end_time one time
-    if !vault.reach_soft_cap && vault.total_staked >= stake_config.soft_cap {
-        vault.end_time = current_timestamp + stake_config.lock_extend_time as i64;
-        vault.reach_soft_cap = true;
-    }
-
-    // transfer(cpi_ctx, stake_amount)?;
-    token_transfer_user(
-        ctx.accounts.user_token_account.to_account_info(),
-        &ctx.accounts.signer,
-        ctx.accounts.vault_staking_token_account.to_account_info(),
-        &ctx.accounts.token_program,
-        amount,
-    )?;
-
-    Ok(())
 }
