@@ -12,7 +12,7 @@ use solana_program::clock::Clock;
 use crate::constant::constants::{STAKE_INFO_SEED, VAULT_SEED};
 use crate::error::ErrorCode;
 
-pub fn destake(ctx: Context<DeStake>) -> Result<()> {
+pub fn destake(ctx: Context<DeStake>, amount: u64) -> Result<()> {
     let stake_info = &mut ctx.accounts.staker_info;
     let vault = &mut ctx.accounts.vault;
     let vault_config = &ctx.accounts.stake_config.to_account_info();
@@ -30,12 +30,11 @@ pub fn destake(ctx: Context<DeStake>) -> Result<()> {
     if vault.end_time > 0 && current_timestamp <= vault.end_time {
         return Err(ErrorCode::TgeNotYetReached.into());
     }
-    let stake_amount = stake_info.stake_amount;
-    stake_info.stake_amount = 0;
+    stake_info.stake_amount -= amount;
     // if soft cap reached -> don't subtract total stake & snapshot_amount of user
     if vault.end_time == 0 {
-        vault.total_staked -= stake_amount;
-        stake_info.snapshot_amount = 0;
+        vault.total_staked -= amount;
+        stake_info.snapshot_amount = stake_info.stake_amount;
     }
 
     // transfer to user
@@ -45,7 +44,7 @@ pub fn destake(ctx: Context<DeStake>) -> Result<()> {
         ctx.accounts.staker_token_account.to_account_info(),
         &ctx.accounts.token_program,
         &[vault.auth_seeds(&vault_config.key().to_bytes()).as_ref()],
-        stake_amount,
+        amount,
     )?;
 
     Ok(())

@@ -22,8 +22,8 @@ pub mod fungstake {
         stake::stake(ctx, amount)
     }
 
-    pub fn destake(ctx: Context<DeStake>) -> Result<()> {
-        destake::destake(ctx)
+    pub fn destake(ctx: Context<DeStake>, amount: u64) -> Result<()> {
+        destake::destake(ctx, amount)
     }
 
     pub fn create_vault(ctx: Context<CreateVault>) -> Result<()> {
