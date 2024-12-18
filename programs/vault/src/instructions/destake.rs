@@ -15,7 +15,7 @@ use crate::constant::constants::{STAKER_INFO_SEED, VAULT_SEED};
 use crate::error::ErrorCode;
 
 #[derive(Accounts)]
-#[instruction(id: u64)]
+#[instruction(id: u64, lock_period: u64,)]
 pub struct DeStake<'info> {
     #[account(mut)]
     pub signer: Signer<'info>,
@@ -31,7 +31,7 @@ pub struct DeStake<'info> {
         seeds = [
             VAULT_SEED,
             stake_config.key().as_ref(),
-            &vault.lock_period.to_le_bytes()
+            &lock_period.to_le_bytes()
         ],
         bump,
     )]
@@ -76,7 +76,7 @@ pub struct DeStake<'info> {
 }
 
 impl<'info> DeStake<'info> {
-    pub fn process(&mut self, _: u64, amount: u64) -> Result<()> {
+    pub fn process(&mut self, _: u64, _: u64, amount: u64) -> Result<()> {
         let staker_info = &mut self.staker_info;
         let vault = &mut self.vault;
         let stake_detail = &mut self.stake_detail;

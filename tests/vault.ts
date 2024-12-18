@@ -280,61 +280,85 @@ describe("vault", () => {
     assert.equal(userStakeDetail.stakeAmount.toNumber(), 50);
   });
 
-  // it("It unstake before reach soft cap", async () => {
-  //   let [configPda] = PublicKey.findProgramAddressSync(
-  //     [Buffer.from(STAKE_CONFIG_SEED), stakeCurrencyMint.toBytes()],
-  //     program.programId
-  //   );
-  //   let [vaultPda] = PublicKey.findProgramAddressSync(
-  //     [
-  //       Buffer.from(VAULT_SEED),
-  //       configPda.toBytes(),
-  //       rewardCurrencyMint.toBytes(),
-  //     ],
-  //     program.programId
-  //   );
-  //   let [userStakePda] = PublicKey.findProgramAddressSync(
-  //     [
-  //       Buffer.from(STAKE_INFO_SEED),
-  //       vaultPda.toBytes(),
-  //       payer.publicKey.toBytes(),
-  //     ],
-  //     program.programId
-  //   );
-  //   let userStakeBefore = await program.account.stakeInfo.fetch(userStakePda);
+  it("It unstake", async () => {
+    const stakeDetailId = new BN(1);
+    // case 1: unstake not finished unbonding yet
+    try {
+      await program.methods
+        .destake(stakeDetailId, new BN(lockPeriod), new BN(1))
+        .accounts({
+          signer: payer.publicKey,
+          stakeCurrencyMint: stakeCurrencyMint,
+        })
+        .rpc();
+    } catch (error) {
+      assert.include(JSON.stringify(error), "UnbondingTimeNotOverYet");
+    }
 
-  //   // try unstake
-  //   // case 1: error: The unbonding time is not over yet.
-  //   let willThrow = false;
-  //   try {
-  //     await program.methods
-  //       .destake(new BN(10))
-  //       .accounts({
-  //         signer: payer.publicKey,
-  //         stakeCurrencyMint: stakeCurrencyMint,
-  //         rewardCurrencyMint: rewardCurrencyMint,
-  //       })
-  //       .rpc();
-  //   } catch (error) {
-  //     willThrow = true;
-  //     assert.include(error.toString(), "UnbondingTimeNotOverYet");
-  //   }
-  //   assert.equal(willThrow, true);
+    await setTimeout(lockPeriod * 1000);
 
-  //   // case 2:  success
-  //   await setTimeout((lockPeriod + 1) * 1000);
-  //   await program.methods
-  //     .destake(new BN(10))
-  //     .accounts({
-  //       signer: payer.publicKey,
-  //       stakeCurrencyMint: stakeCurrencyMint,
-  //       rewardCurrencyMint: rewardCurrencyMint,
-  //     })
-  //     .rpc();
-  //   let userStakeAfter = await program.account.stakeInfo.fetch(userStakePda);
-  //   assert.equal(
-  //     userStakeBefore.stakeAmount.toNumber() - 10,
-  //     userStakeAfter.stakeAmount.toNumber()
-  //   );
-  // });
+    // case 2: successfully unstake
+    await program.methods
+      .destake(stakeDetailId, new BN(lockPeriod), new BN(1000))
+      .accounts({
+        signer: payer.publicKey,
+        stakeCurrencyMint: stakeCurrencyMint,
+      })
+      .rpc();
+
+    let [configPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from(STAKE_CONFIG_SEED), stakeCurrencyMint.toBytes()],
+      program.programId
+    );
+    let [vaultPda] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from(VAULT_SEED),
+        configPda.toBytes(),
+        new BN(lockPeriod).toBuffer("le", 8),
+      ],
+      program.programId
+    );
+
+    let [userStakePda] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from(STAKER_INFO_SEED),
+        vaultPda.toBytes(),
+        payer.publicKey.toBytes(),
+      ],
+      program.programId
+    );
+    let [userStakeDetailPda] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from(STAKE_DETAIL_SEED),
+        userStakePda.toBytes(),
+        stakeDetailId.toBuffer("le", 8),
+      ],
+      program.programId
+    );
+
+    // validate. Should drain the first stake's detail
+    let vaultInfo = await program.account.vault.fetch(vaultPda);
+    assert.equal(vaultInfo.totalStaked.toNumber(), 50);
+
+    let userStakeInfo = await program.account.stakerInfo.fetch(userStakePda);
+    assert.equal(userStakeInfo.totalStake.toNumber(), 50);
+
+    let userStakeDetailInfo = await program.account.stakeDetail.fetch(
+      userStakeDetailPda
+    );
+    assert.equal(userStakeDetailInfo.stakeAmount.toNumber(), 0);
+
+    // case 2: cannot unstake more when amount = 0
+    try {
+      await program.methods
+        .destake(stakeDetailId, new BN(lockPeriod), new BN(1000))
+        .accounts({
+          signer: payer.publicKey,
+          stakeCurrencyMint: stakeCurrencyMint,
+        })
+        .rpc();
+    } catch (error) {
+      assert.include(JSON.stringify(error), "Tokens not staked");
+    }
+  });
 });

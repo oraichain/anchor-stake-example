@@ -22,8 +22,8 @@ pub mod vault {
         ctx.accounts.process(lock_period, amount)
     }
 
-    pub fn destake(ctx: Context<DeStake>, id: u64, amount: u64) -> Result<()> {
-        ctx.accounts.process(id, amount)
+    pub fn destake(ctx: Context<DeStake>, id: u64, lock_period: u64, amount: u64) -> Result<()> {
+        ctx.accounts.process(id, lock_period, amount)
     }
 
     pub fn create_vault(ctx: Context<CreateVault>, lock_period: u64) -> Result<()> {
