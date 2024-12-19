@@ -97,6 +97,7 @@ impl<'info> Stake<'info> {
         stake_detail.unstaked_at_time = current_timestamp + vault.lock_period as i64;
         stake_detail.stake_amount = amount;
         stake_detail.id = staker_info.current_id + 1;
+        stake_detail.staker = self.signer.key();
 
         // update staker info
         staker_info.total_stake += amount;
