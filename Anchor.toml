@@ -5,7 +5,8 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-fungstake = "5VgFt7VaM9eMchXbhLmepFvgwVBniab4PUYBskcYesML"
+fungstake = "J4Awz2tgfFUqDZorkaT3FMnV5Hy6vh8AbwvAMLNzpKJ1"
+vault = "9grg8RG2prncny136yjDMy5BZcwhB4NvqGMGDFs7QtKy"
 
 [registry]
 url = "https://api.apr.dev"
