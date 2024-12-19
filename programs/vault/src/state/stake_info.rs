@@ -10,7 +10,7 @@ pub struct StakerInfo {
     pub current_id: u64,
 }
 
-pub const STAKE_DETAIL_SIZE: usize = 8 + 1 + 8 + 8 + 8;
+pub const STAKE_DETAIL_SIZE: usize = 8 + 1 + 8 + 8 + 8 + 32;
 #[account]
 pub struct StakeDetail {
     /// Bump seed used to generate the program address / authority
@@ -18,4 +18,5 @@ pub struct StakeDetail {
     pub id: u64,
     pub stake_amount: u64,
     pub unstaked_at_time: i64,
+    pub staker: Pubkey,
 }

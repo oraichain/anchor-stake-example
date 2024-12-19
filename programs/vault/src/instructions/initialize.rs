@@ -1,7 +1,7 @@
 use crate::{constant::constants::STAKE_CONFIG_SEED, StakeConfig, STAKE_CONFIG_SIZE};
-use anchor_lang::prelude::*;
+use anchor_lang::{prelude::*, system_program};
 
-use anchor_spl::token::{Mint, Token};
+use anchor_spl::token::{self, Mint, Token};
 use solana_program::sysvar::SysvarId;
 
 #[derive(Accounts)]
@@ -22,7 +22,9 @@ pub struct Initialize<'info> {
         mint::token_program = token_program
     )]
     pub stake_currency_mint: Account<'info, Mint>,
+    #[account(address = token::ID)]
     pub token_program: Program<'info, Token>,
+    #[account(address = system_program::ID)]
     pub system_program: Program<'info, System>,
 
     #[account(address = Rent::id())]
