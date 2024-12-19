@@ -137,3 +137,20 @@ const stake = async (lockPeriod: number, amount: number) => {
   tx.recentBlockhash = (await solConnection.getLatestBlockhash()).blockhash;
   await execTx(tx, solConnection, payer);
 };
+
+const unStake = async (lockPeriod: number, id: number, amount: number) => {
+  await setClusterConfig();
+  const stakeCurrencyMint = globalConfig.STAKE_CURRENCY_MINT;
+
+  const tx = await program.methods
+    .destake(new BN(id), new BN(lockPeriod), new BN(amount))
+    .accounts({
+      signer: payer.publicKey,
+      stakeCurrencyMint: stakeCurrencyMint,
+    })
+    .transaction();
+
+  tx.feePayer = payerKeypair.publicKey;
+  tx.recentBlockhash = (await solConnection.getLatestBlockhash()).blockhash;
+  await execTx(tx, solConnection, payer);
+};
